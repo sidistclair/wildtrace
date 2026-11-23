@@ -33,7 +33,7 @@ Wild Trace is a short visual mystery game for around 10–18 year olds. The play
 | Overnight | Space skips to morning |
 | Trail camera | ← → frames · ↑ ↓ switch camera · F flag · P pin · C compare · V zoom |
 | Storm Sweep | ← leave it · → bag it |
-| Anywhere | Esc closes pop-ups |
+| Anywhere | Esc closes pop-ups · M turns sound on or off |
 
 Everything can also be done with the mouse.
 

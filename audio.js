@@ -24,7 +24,7 @@ let SFX = {
   glitch:      { file: "electric_glitch_clip.mp3", volume: 0.6 },     // a wrong wire ("zzt!"), a wrong storm sort
   signalLost:  { file: "electricity_glitch_clip.mp3", volume: 0.5 },  // the ridge camera's last upload
   powerOn:     { file: "electricity_clip.mp3", volume: 0.6 },    // a wire plugged in
-  pen:         { file: "pen_writing_1_clip.mp3", volume: 0.6 },  // ticking a claim
+  pen:         { file: "pen writing 1.mp3", volume: 0.6 },       // ticking a claim
   walking:     { file: "walking_clip.mp3", volume: 0.5 },        // heading out to set the cameras
 };
 
@@ -105,6 +105,7 @@ function hook(name, after) {
 function snapshot() {
   return {
     cams: cameras.slice(),
+    frame: frame[current],
     done: wires ? wires.done.slice() : null,
     wrongAt: wires ? wires.wrongAt : 0,
   };
@@ -130,7 +131,7 @@ hook("deskCamera", (r, a, before) => { if (cameras.join() != before.cams.join())
 // doesn't tell the player which flags were right until the clue board.
 hook("flagPhoto", () => sfx("click2"));
 hook("togglePin", () => sfx("cameraClick"));
-hook("stepFrame", () => sfx("uiClick"));
+hook("stepFrame", (r, a, before) => { if (frame[current] != before.frame) sfx("uiClick"); });
 
 // Wires puzzle
 hook("connect", (r, args, before) => {

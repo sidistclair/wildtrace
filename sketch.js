@@ -43,6 +43,7 @@ let lostAt = -1;            // the place it was smashed at
 let upgrades = [];          // the ids of the gear the player has picked
 let timer = 0;              // frames since the night started
 let flash = 0;              // brightness of a camera flash on the watch screen, fades to 0
+let snapped = [];           // the cameras that have already flashed tonight
 let clues = [];             // the clues the player has flagged so far
 let flags = [];             // the scenes the player has flagged, as "night-place"
 let seen = [];              // the photos the player has taken, as "night-place"
@@ -637,6 +638,7 @@ function drawPlan() {
   let placed = active().filter((k) => cameras[k] != null).length;
   if (noteButton(placed < need ? "Place " + (need - placed) + " more" : need == 1 ? "Set the camera →" : "Set the cameras →", 930, 628, 300, 72, STICKY, -0.02, placed < need)) {
     timer = 0;
+    snapped = [];
     screen = "watch";
   }
 
@@ -679,8 +681,12 @@ function drawWatch() {
     let x = 640 - list.length * 170 + 20 + j * 340;
     let t = events[night - 1][cameras[k]].time.split(":");
     let since = (int(t[0]) * 60 + int(t[1]) - 20 * 60 + 1440) % 1440; // minutes after 20:00
+    if (since > 600) since = 10; // a daytime photo (outside 20:00-06:00) flashes as the night begins
     let snap = abs(minutes - 20 * 60 - since) < 25;
-    if (snap && flash < 10) flash = 120;
+    if (snap && !snapped.includes(k)) {
+      snapped.push(k);
+      flash = 120;
+    }
     fill(snap ? color(240, 255, 240, 230) : color(10, 20, 14, 220));
     stroke(80, 120, 90);
     rect(x, 470, 300, 90, 10);
@@ -1161,7 +1167,8 @@ function drawHelp() {
     txtBox(s, -320, y, 640, 90, 30, BLUE, HAND, 40);
     y += s.length > 60 ? 80 : 40;
   }
-  txt("keys:  1-5 place   ← → frames   ↑ ↓ camera   F flag   P pin   C compare   V zoom", -320, 200, 15, INK, TYPE);
+  txt("keys:  1-5 place   ← → frames   ↑ ↓ camera   F flag   P pin", -320, 192, 15, INK, TYPE);
+  txt("       C compare   V zoom   M sound on/off   Esc close", -320, 214, 15, INK, TYPE);
   pop();
   if (noteButton("Got it!", 790, 560, 180, 66)) help = false;
 }
