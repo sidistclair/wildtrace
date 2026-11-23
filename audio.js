@@ -169,8 +169,8 @@ function audioFrame() {
   if (screen == "watch" && flash > last.flash + 50) sfx("shutter");
   last.flash = flash;
 
-  // a dirty lens wiped clean
-  if (cleaned.length > last.cleaned) sfx("ding");
+  // a dirty lens wiped clean (only on the review screen, so continuing a saved game doesn't ding)
+  if (cleaned.length > last.cleaned && screen == "review") sfx("ding");
   last.cleaned = cleaned.length;
 
   // the ridge camera's last upload on night 2

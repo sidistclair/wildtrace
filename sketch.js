@@ -261,9 +261,7 @@ let later = [];    // pictures for later screens, loaded once the game is ready:
 
 // The art for later screens. The game doesn't wait for these: they download in the background
 // while the player reads the briefing and places the first cameras.
-const LATER_ART = ["watch", "ending-full", "ending-partial", "ending-insufficient", "front", "key-normal",
-  "key-pressed", "key-disabled", "flag-normal", "flag-hover", "flag-pressed", "flag-flagged", "led-rec",
-  "led-mode", "repair", "spark", "cloth", "report-form", "verdict", "case-card", "red-string", "id-tag",
+const LATER_ART = ["ending-full", "ending-partial", "ending-insufficient", "repair", "spark", "cloth", "report-form", "verdict", "case-card", "red-string", "id-tag",
   "crate", "lens-mud-1", "lens-mud-2", "lens-slobber-1", "lens-slobber-2", "lens-droppings-1",
   "lens-droppings-2", "cam-smashed", "cam-knocked"];
 const LATER_SETS = ["stamp-", "track-", "wire-", "plug-", "zoom-lens", "photo-matcher", "motion-sensor",
@@ -571,7 +569,8 @@ function drawTitle() {
 
   if (saved) {
     // a game in progress: carry on, or start again (which asks first)
-    let where = ["report", "results", "end"].includes(saved.screen) ? "the case" : "night " + saved.night;
+    let where = ["report", "results", "end"].includes(saved.screen) ? "the case"
+      : ["gear", "storm"].includes(saved.screen) ? "after night " + saved.night : "night " + saved.night;
     if (noteButton("Continue: " + where, 96, 450, 320, 84)) resumeGame(saved);
     if (noteButton("New game", 446, 456, 210, 84, PAPER, 0.03)) askRestart = true;
     if (noteButton("How to play", 686, 462, 230, 84, PAPER, -0.02)) help = true;
@@ -674,7 +673,9 @@ function drawPlan() {
 
   let need = active().length;
   let placed = active().filter((k) => cameras[k] != null).length;
-  if (noteButton(placed < need ? "Place " + (need - placed) + " more" : need == 1 ? "Set the camera →" : "Set the cameras →", 930, 628, 300, 72, STICKY, -0.02, placed < need)) {
+  let label = loose != -1 ? "Fix CAM " + (loose + 1) + " first" : placed < need ? "Place " + (need - placed) + " more"
+    : need == 1 ? "Set the camera →" : "Set the cameras →";
+  if (noteButton(label, 930, 628, 300, 72, STICKY, -0.02, placed < need)) {
     timer = 0;
     snapped = [];
     screen = "watch";
@@ -691,8 +692,9 @@ function drawWatch() {
   fill(4, 8, 24, 150);
   rect(0, 0, 1280, 720);
 
-  // The night runs from 20:00 to 06:00 in 180 frames (about 3 seconds)
-  timer++;
+  // The night runs from 20:00 to 06:00 in 180 frames (about 3 seconds). It pauses while
+  // How to play or "Start over?" is open.
+  if (!help && !askRestart) timer++;
   let progress = constrain(timer / 180, 0, 1);
   let minutes = 20 * 60 + progress * 600;
   let h = floor(minutes / 60) % 24;
@@ -1094,7 +1096,9 @@ function drawEnd() {
   for (let n = 1; n <= NIGHTS; n++) {
     for (let p = 0; p < 5; p++) if (events[n - 1][p].clue) all.push({ e: events[n - 1][p], pic: photos[n][p][0] });
   }
-  all.splice(15, 0, { e: { clue: STORM_CLUE, tag: "storm snare" }, pic: stormSnarePic() }); // after night 3
+  // the storm's snare wire goes after the clues from the night of the storm
+  let afterStorm = events.slice(0, STORM_NIGHT).flat().filter((e) => e.clue).length;
+  all.splice(afterStorm, 0, { e: { clue: STORM_CLUE, tag: "storm snare" }, pic: stormSnarePic() });
   // up to 10 clues in two rows of big polaroids, more in three rows of smaller ones
   let rows = all.length <= 10 ? 2 : 3;
   let cols = ceil(all.length / rows);
@@ -1147,7 +1151,7 @@ function drawEnd() {
   let summary = (n == all.length
     ? "You caught every clue in the reserve."
     : "The dark photos are clues you missed. Try watching different spots next time.") +
-    (wrong ? " False alarms: " + wrong + "." : " No false alarms!");
+    (flags.length == 0 ? " You didn't flag any photos." : wrong ? " False alarms: " + wrong + "." : " No false alarms!");
   txtBox(summary, -130, -10, 260, 150, 26, BLUE, HAND);
   pop();
   pushpin(1070, 54, "#e0a526");
@@ -2140,7 +2144,8 @@ function drawWires() {
 
   if (all) {
     stamp("FIXED", 640, 380, -0.15, color(40, 130, 60, 230), 44);
-    if (noteButton(wires.back == "gear" ? "Next night →" : "Back to the map →", 940, 640, 290, 66)) finishWires();
+    let label = wires.back == "plan" ? "Back to the map →" : bonusPicks > 0 ? "Back to the supplies →" : "Next night →";
+    if (noteButton(label, 940, 640, 290, 66)) finishWires();
   } else {
     stickyNote(1070, 440, 200, 170, 0.03, wires.sel != -1 ? "Now click the plug that matches." : "Drag each wire to the plug that matches.");
   }
@@ -2170,6 +2175,7 @@ function finishWires() {
 // (not straight after a repair, so the player doesn't fix wires twice in a row).
 function nextNight(justRepaired = repairedTonight) {
   repairedTonight = false;
+  bonusPicks = 0; // a bonus pick is only for tonight's supply drop
   night++;
   if (night == LOOSE_NIGHT && !justRepaired) {
     loose = active()[0];
@@ -2216,8 +2222,8 @@ let bonusPicks = 0; // extra supply-drop picks earned in the storm
 let snarePic = null; // a photo-shaped picture of the snare wire, for the report and clue board
 
 // Where the drop zones are on the desk: [x, y, w, h]
-const UNDERGROWTH = [1000, 40, 240, 200];
-const SACK = [1030, 300, 200, 240];
+const UNDERGROWTH = [1000, 80, 240, 200];
+const SACK = [1030, 340, 200, 240];
 
 function loadStormArt() {
   stormArt.trail = loadPic("assets/storm/creek-trail-after-storm.jpg", 640, 400, true);
@@ -2294,7 +2300,8 @@ function drawStorm() {
   fill(0);
   rect(60, 80, 688, 440);
   image(stormArt.trail, 84, 100);
-  if (!s.done) {
+  // the storm pauses while How to play or "Start over?" is open
+  if (!s.done && !help && !askRestart) {
     s.frames++;
     // a new item every couple of seconds, coming down faster as the storm goes on
     if (--s.next <= 0 && s.queue.length && s.items.length < 3) {
@@ -2357,7 +2364,8 @@ function drawStorm() {
     fill(0, 150);
     rect(84, 430, 640, 70);
     screenText(head, 96, 458, 24, 0, LEFT, r.right ? SCREEN : "#ff8a80");
-    screenText(r.it.fact, 96, 486, 22, 0, LEFT, "#e8e8e8");
+    let fact = r.washed && r.it.evidence ? "That was evidence from the ridge, and now it's gone." : r.it.fact;
+    screenText(fact, 96, 486, 22, 0, LEFT, "#e8e8e8");
   }
 
   shadowOn(26);
@@ -2455,11 +2463,13 @@ function finishStorm() {
 
 // A photo-shaped picture of the snare wire on the trail, for the report and the clue board
 function stormSnarePic() {
-  if (!snarePic) {
-    snarePic = createGraphics(800, 500);
+  let wire = STORM_ITEMS.find((it) => it.id == "snare-wire");
+  if (!snarePic || !snarePic.done) {
+    if (!snarePic) snarePic = createGraphics(800, 500);
     snarePic.image(stormArt.trail, 0, 0, 800, 500);
-    let wire = STORM_ITEMS.find((it) => it.id == "snare-wire");
     snarePic.image(wire.pic, 270, 120, 260, 260);
+    // keep it once both pictures have arrived; until then it is drawn again each time
+    snarePic.done = stormArt.trail.loaded && wire.pic.loaded;
   }
   return snarePic;
 }
