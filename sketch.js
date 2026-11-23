@@ -441,6 +441,7 @@ function draw() {
   } else if (screen != "title") {
     if (helpButton(1236, 40)) help = true;
     if (helpButton(1184, 40, "restart")) askRestart = true;
+    soundButton(1132, 40);
   }
   // save the game twice a second if anything changed
   if (frameCount % 30 == 0) autosave();
@@ -521,6 +522,7 @@ function drawTitle() {
     rect(x, 0, 4, 720);
   }
   viewfinder("CAM 1", "IR NIGHT MODE");
+  soundButton(1176, 140);
 
   shadowOn(16);
   push();
@@ -2741,6 +2743,41 @@ function gearCard(g, x, y, rot, s = 1) {
   pop();
   tape(x, y - 182 * s, rot + 0.05);
   return hot && click;
+}
+
+// A round paper button with a speaker on it that turns the sound on and off (for players without
+// a keyboard; M does the same). It only appears when audio.js has loaded.
+function soundButton(x, y) {
+  if (typeof toggleMute != "function") return;
+  let hot = dist(mouseX, mouseY, x, y) < 22;
+  if (hot) hovering = true;
+  shadowOn(8);
+  fill(hot ? "#fff6dc" : "#efe3c4");
+  stroke("#5b4a32");
+  strokeWeight(2);
+  circle(x, y, 40);
+  shadowOff();
+  // the speaker
+  noStroke();
+  fill("#3a3024");
+  rect(x - 11, y - 5, 6, 10, 1);
+  triangle(x - 6, y - 5, x + 2, y - 11, x + 2, y + 11);
+  triangle(x - 6, y + 5, x + 2, y - 11, x + 2, y + 11);
+  noFill();
+  stroke(muted ? "#a3312b" : "#3a3024");
+  strokeWeight(2.5);
+  if (muted) {
+    // a red cross: the sound is off
+    line(x + 6, y - 5, x + 14, y + 5);
+    line(x + 14, y - 5, x + 6, y + 5);
+  } else {
+    // sound waves: the sound is on
+    arc(x + 3, y, 12, 12, -0.9, 0.9);
+    arc(x + 3, y, 22, 22, -0.9, 0.9);
+  }
+  noStroke();
+  strokeWeight(1);
+  if (hot && click) toggleMute();
 }
 
 // A round paper button: "help" opens How to play, "restart" starts over

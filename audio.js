@@ -1,6 +1,6 @@
 // Wild Trace: sound
 // Browsers stay silent until the player first clicks or presses a key.
-// Press M at any time to mute or unmute.
+// Press M or click the speaker button at any time to mute or unmute. The choice is remembered.
 
 const AUDIO_DIR = "assets/audio/";
 
@@ -56,6 +56,9 @@ const SCENE_SOUND = [
 // ---------- Loading and playing ----------
 
 let muted = false;
+try {
+  muted = localStorage.getItem("wildtrace-muted") == "1"; // remembered from last time
+} catch (e) {}
 let unlocked = false; // true once the player has clicked or pressed a key
 
 // Each one-shot is loaded once up front, so it's in the browser's cache when it's needed
@@ -282,5 +285,14 @@ function unlock() {
 window.addEventListener("pointerdown", unlock, true);
 window.addEventListener("keydown", (e) => {
   unlock();
-  if (e.key == "m" || e.key == "M") muted = !muted;
+  if (e.key == "m" || e.key == "M") toggleMute();
 }, true);
+
+// Turns the sound on or off (the M key and the speaker button in sketch.js) and remembers it
+function toggleMute() {
+  muted = !muted;
+  try {
+    localStorage.setItem("wildtrace-muted", muted ? "1" : "0");
+  } catch (e) {} // storage blocked (e.g. a private window): it just isn't remembered
+  if (!muted) sfx("uiClick2");
+}
