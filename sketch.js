@@ -276,8 +276,6 @@ const ART_FILES = {
   "ending-partial": ["screens/ending-partial.jpg", 1280, 720],
   "ending-insufficient": ["screens/ending-insufficient.jpg", 1280, 720],
   logo: ["ui/brand/wild-trace-logo.png", 680, 180],
-  help: ["ui/buttons/help.png", 44, 44],
-  restart: ["ui/buttons/restart.png", 44, 44],
   front: ["ui/camera/front.webp", 880, 672],
   "key-normal": ["ui/camera/key-normal.png", 92, 58],
   "key-pressed": ["ui/camera/key-pressed.png", 92, 58],
@@ -389,7 +387,8 @@ function loadPic(path, w, h, isLater = false) {
   return pic;
 }
 
-function startLoading(pic, path, needed) {
+// then() is called once the picture has loaded or failed.
+function startLoading(pic, path, needed, then = () => {}) {
   let img = new Image();
   if (needed) pending++;
   img.onload = () => {
@@ -400,18 +399,39 @@ function startLoading(pic, path, needed) {
       pending--;
       lastLoad = millis();
     }
+    then();
   };
   img.onerror = () => {
     if (needed) pending--;
     console.warn("Wild Trace: couldn't load " + path);
+    then();
   };
   img.src = path;
 }
 
-// Starts downloading the pictures for later screens, in the order the game needs them
+// Downloads the pictures for later screens 4 at a time, in the order the game needs them, so on a
+// slow connection night 1's photos arrive first instead of sharing the connection with everything.
 function loadLater() {
-  for (let [pic, path] of later) startLoading(pic, path, false);
-  later = [];
+  later.sort((a, b) => neededBy(a[1]) - neededBy(b[1]));
+  for (let i = 0; i < 4; i++) loadNextLater();
+}
+
+function loadNextLater() {
+  let job = later.shift();
+  if (job) startLoading(job[0], job[1], false, loadNextLater);
+}
+
+// Roughly when a later picture is first needed: 1 = night 1's photos, 2 = the first supply drop, ...
+// (sort is stable, so pictures with the same number keep the order they were listed in)
+function neededBy(path) {
+  let n = path.match(/(?:\/N|night-)(\d)/);
+  if (n) return int(n[1]) * 2 - 1; // a night's photos and map
+  if (/lens-|cleaning/.test(path)) return 1;
+  if (/supply|icons\//.test(path)) return 2;
+  if (/cam-smashed|field-id/.test(path)) return 3;
+  if (/storm\//.test(path)) return 6;
+  if (/cam-knocked|repair|spark|wire-|plug-/.test(path)) return 6;
+  return 10; // the report, verdict, endings and clue board
 }
 
 // Draws the grain and scanline textures once, so draw() only has to copy them onto the screen
@@ -775,6 +795,9 @@ function drawReview() {
   } else {
     drawPhoto(currentPic(), 84, 100, 640, 400, currentKey());
     drawLens();
+  }
+  if (!currentPic().loaded) {
+    screenText("DOWNLOADING PHOTO" + ".".repeat(floor(frameCount / 20) % 4), 404, 300, 30, 0, CENTER, "#ffd866");
   }
   image(scanlines, 84, 100);
   let dirty = isDirty();
@@ -2800,14 +2823,7 @@ function gearCard(g, x, y, rot, s = 1) {
 // a keyboard; M does the same). It only appears when audio.js has loaded.
 function soundButton(x, y) {
   if (typeof toggleMute != "function") return;
-  let hot = dist(mouseX, mouseY, x, y) < 22;
-  if (hot) hovering = true;
-  shadowOn(8);
-  fill(hot ? "#fff6dc" : "#efe3c4");
-  stroke("#5b4a32");
-  strokeWeight(2);
-  circle(x, y, 40);
-  shadowOff();
+  let hot = roundButton(x, y);
   // the speaker
   noStroke();
   fill("#3a3024");
@@ -2833,16 +2849,42 @@ function soundButton(x, y) {
 
 // A round paper button: "help" opens How to play, "restart" starts over
 function helpButton(x, y, which = "help") {
+  let hot = roundButton(x, y);
+  stroke("#3a3024");
+  strokeWeight(2.5);
+  noFill();
+  if (which == "help") {
+    noStroke();
+    txt("?", x, y + 9, 26, "#3a3024", MARKER, CENTER);
+  } else {
+    // a circular arrow, centred on the button
+    arc(x, y, 20, 20, -HALF_PI + 0.5, -HALF_PI + TWO_PI - 0.3);
+    noStroke();
+    fill("#3a3024");
+    let ax = x + cos(-HALF_PI + 0.5) * 10, ay = y + sin(-HALF_PI + 0.5) * 10;
+    triangle(ax - 1, ay - 6, ax + 6, ay + 1, ax - 5, ay + 4); // the arrowhead
+  }
+  noStroke();
+  strokeWeight(1);
+  return hot && click;
+}
+
+// The paper circle behind the help, restart and sound buttons. Returns true while the mouse is over it.
+function roundButton(x, y) {
   let hot = dist(mouseX, mouseY, x, y) < 22;
   if (hot) hovering = true;
   shadowOn(8);
-  image(art[which], x - 22, y - 22, 44, 44);
-  if (hot) {
-    fill(255, 50);
-    circle(x, y, 44);
-  }
+  fill(hot ? "#fff6dc" : "#efe3c4");
+  stroke("#5b4a32");
+  strokeWeight(2);
+  circle(x, y, 42);
   shadowOff();
-  return hot && click;
+  stroke(91, 74, 50, 90);
+  strokeWeight(1);
+  noFill();
+  circle(x, y, 34);
+  noStroke();
+  return hot;
 }
 
 // A sticky note with handwriting on it
