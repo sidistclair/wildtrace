@@ -66,6 +66,7 @@ for (let name in SFX) SFX[name].el = makeAudio(SFX[name].file);
 for (let name in LOOPS) {
   let l = LOOPS[name];
   l.el = makeAudio(l.file);
+  l.el.preload = "none"; // downloads when it first plays, so it doesn't slow down the pictures
   l.el.loop = true;
   l.level = 0;  // how loud it is right now (fades towards target)
   l.target = 0;

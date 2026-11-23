@@ -253,9 +253,21 @@ let art = {};     // every other picture, e.g. art.desk or art["sticky-yellow-1"
 let titlePic;
 // Textures drawn once in setup()
 let grain, scanlines;
-let pending = 0;   // pictures still loading
-let loaded = 0;    // pictures loaded so far (for the loading bar)
-let ready = false; // true once everything has loaded (or 20 seconds have passed)
+let pending = 0;   // pictures the first screens need that are still loading
+let loaded = 0;    // of those, how many have loaded (for the loading bar)
+let ready = false; // true once the first screens' pictures have loaded (or loading has stalled)
+let lastLoad = 0;  // when the last of those pictures arrived, in milliseconds
+let later = [];    // pictures for later screens, loaded once the game is ready: [pic, path]
+
+// The art for later screens. The game doesn't wait for these: they download in the background
+// while the player reads the briefing and places the first cameras.
+const LATER_ART = ["watch", "ending-full", "ending-partial", "ending-insufficient", "front", "key-normal",
+  "key-pressed", "key-disabled", "flag-normal", "flag-hover", "flag-pressed", "flag-flagged", "led-rec",
+  "led-mode", "repair", "spark", "cloth", "report-form", "verdict", "case-card", "red-string", "id-tag",
+  "crate", "lens-mud-1", "lens-mud-2", "lens-slobber-1", "lens-slobber-2", "lens-droppings-1",
+  "lens-droppings-2", "cam-smashed", "cam-knocked"];
+const LATER_SETS = ["stamp-", "track-", "wire-", "plug-", "zoom-lens", "photo-matcher", "motion-sensor",
+  "field-id-scope", "repair-kit"];
 
 // The rest of the art, as name: [file in assets/, width, height]
 const ART_FILES = {
@@ -334,28 +346,29 @@ function setup() {
     for (let i = 0; i < 5; i++) {
       photos[n][i] = [];
       for (let f = 1; f <= frameCounts[n - 1][i]; f++) {
-        photos[n][i].push(loadPic("assets/photos/N" + n + "-" + ids[i] + "-frame-" + f + ".jpg", 800, 500));
+        photos[n][i].push(loadPic("assets/photos/N" + n + "-" + ids[i] + "-frame-" + f + ".jpg", 800, 500, true));
       }
     }
   }
   for (let a of archive) a.pic = loadPic("assets/photos/" + a.file + "-frame-1.jpg", 800, 500);
-  for (let n = 1; n <= NIGHTS; n++) maps[n] = loadPic("assets/map/night-" + n + ".jpg", 1720, 1200);
+  for (let n = 1; n <= NIGHTS; n++) maps[n] = loadPic("assets/map/night-" + n + ".jpg", 1720, 1200, n > 1);
   titlePic = loadPic("assets/screens/title-background.jpg", 1920, 1080);
   for (let name of ["left", "right", "zoom", "pin", "compare", "warning", "camera", "eye"]) {
     icons[name] = loadPic("assets/ui/icons/" + name + "-light.png", 96, 96);
   }
-  for (let g of gear.concat([REPAIR])) icons[g.icon] = loadPic("assets/ui/icons/" + g.icon + "-light.png", 96, 96);
+  for (let g of gear.concat([REPAIR])) icons[g.icon] = loadPic("assets/ui/icons/" + g.icon + "-light.png", 96, 96, true);
   for (let name in ART_FILES) {
     let [file, w, h] = ART_FILES[name];
-    art[name] = loadPic("assets/" + file, w, h);
+    art[name] = loadPic("assets/" + file, w, h, LATER_ART.includes(name));
   }
   for (let [folder, names, w, h] of ART_SETS) {
-    for (let name of names) art[name] = loadPic("assets/" + folder + name + ".png", w, h);
+    for (let name of names) {
+      art[name] = loadPic("assets/" + folder + name + ".png", w, h, LATER_SETS.some((p) => name.startsWith(p)));
+    }
   }
   loadStormArt();
   makeTextures();
-  // stop waiting after 20 seconds, so a missing file can't keep the game on the loading screen
-  setTimeout(() => (ready = true), 20000);
+  lastLoad = millis();
   saved = loadSave();
   // save one last time when the tab is closed or hidden
   window.addEventListener("pagehide", autosave);
@@ -370,19 +383,37 @@ function mapFor(n) {
 // Loads a picture through an <img> tag rather than loadImage(),
 // so it also works when index.html is opened straight from disk.
 // The picture is blank until the file has loaded.
-function loadPic(path, w, h) {
+// If later is true it waits until the first screens' pictures have loaded, so it doesn't slow them down.
+function loadPic(path, w, h, isLater = false) {
   let pic = createImage(w, h);
-  let img = new Image();
-  pending++;
-  img.onload = () => {
-    pic.drawingContext.drawImage(img, 0, 0, w, h);
-    pic.loaded = true;
-    loaded++;
-    pending--;
-  };
-  img.onerror = () => pending--;
-  img.src = path;
+  if (isLater) later.push([pic, path]);
+  else startLoading(pic, path, true);
   return pic;
+}
+
+function startLoading(pic, path, needed) {
+  let img = new Image();
+  if (needed) pending++;
+  img.onload = () => {
+    pic.drawingContext.drawImage(img, 0, 0, pic.width, pic.height);
+    pic.loaded = true;
+    if (needed) {
+      loaded++;
+      pending--;
+      lastLoad = millis();
+    }
+  };
+  img.onerror = () => {
+    if (needed) pending--;
+    console.warn("Wild Trace: couldn't load " + path);
+  };
+  img.src = path;
+}
+
+// Starts downloading the pictures for later screens, in the order the game needs them
+function loadLater() {
+  for (let [pic, path] of later) startLoading(pic, path, false);
+  later = [];
 }
 
 // Draws the grain and scanline textures once, so draw() only has to copy them onto the screen
@@ -408,9 +439,13 @@ function makeTextures() {
 function draw() {
   hovering = false;
   noStroke();
-  // Wait for the pictures and fonts before showing the game
+  // Wait for the first screens' pictures and the fonts. If nothing has arrived for 15 seconds
+  // (a missing file or a broken connection), carry on rather than wait forever.
   if (!ready) {
-    if (pending == 0 && document.fonts.status == "loaded") ready = true;
+    if ((pending == 0 && document.fonts.status == "loaded") || millis() - lastLoad > 15000) {
+      ready = true;
+      loadLater();
+    }
     drawLoading();
     return;
   }
@@ -515,6 +550,7 @@ function keyPressed() {
 
 // Title: the forest painting seen through a camera's viewfinder
 function drawTitle() {
+  background(8, 14, 10);
   image(titlePic, 0, 0, 1280, 720);
   // darken the left side so the title stands out
   for (let x = 0; x < 900; x += 4) {
@@ -1870,7 +1906,8 @@ function makeLens(scene) {
   // the film covers the whole photo, so every grid square has to be wiped
   let cells = [];
   for (let cy = 0; cy < 400 / CELL; cy++) for (let cx = 0; cx < 640 / CELL; cx++) cells.push(cy * 100 + cx);
-  return { scene, type, g, cells, wiped: new Set(), fade: 255 };
+  let painted = art["lens-" + type + "-" + variant].loaded && art["lens-" + type + "-1"].loaded;
+  return { scene, type, g, cells, wiped: new Set(), fade: 255, painted };
 }
 
 // Rubs the lens along the line from the last mouse position to this one
@@ -1903,7 +1940,9 @@ function lensClean() {
 function drawLens() {
   let scene = sceneKey();
   if (isDirty()) {
-    if (!lens || lens.scene != scene) {
+    // (made again if its dirt picture arrived after it was made and nothing has been wiped yet)
+    let stale = lens && !lens.painted && lens.wiped.size == 0 && art["lens-" + DIRTY[scene] + "-1"].loaded;
+    if (!lens || lens.scene != scene || stale) {
       if (lens) lens.g.remove();
       lens = makeLens(scene);
     }
@@ -2181,15 +2220,15 @@ const UNDERGROWTH = [1000, 40, 240, 200];
 const SACK = [1030, 300, 200, 240];
 
 function loadStormArt() {
-  stormArt.trail = loadPic("assets/storm/creek-trail-after-storm.jpg", 640, 400);
-  for (let r of ["far", "mid", "near"]) stormArt["rain-" + r] = loadPic("assets/storm/fx/rain-" + r + ".png", 640, 400);
-  for (let f of ["water-streaks", "mud-streaks"]) stormArt[f] = loadPic("assets/storm/fx/" + f + ".png", 320, 160);
-  stormArt.splash = loadPic("assets/storm/fx/splash.png", 128, 96);
-  stormArt.sparkle = loadPic("assets/storm/fx/sparkle.png", 96, 96);
-  for (let t of ["empty", "half-full", "full"]) stormArt["sack-" + t] = loadPic("assets/storm/targets/litter-sack-" + t + ".png", 200, 240);
-  stormArt.undergrowth = loadPic("assets/storm/targets/undergrowth.png", 240, 200);
-  stormArt.note = loadPic("assets/storm/thank-you-note.webp", 500, 360);
-  for (let it of STORM_ITEMS) it.pic = loadPic("assets/storm/items/" + it.id + ".png", 256, 256);
+  stormArt.trail = loadPic("assets/storm/creek-trail-after-storm.jpg", 640, 400, true);
+  for (let r of ["far", "mid", "near"]) stormArt["rain-" + r] = loadPic("assets/storm/fx/rain-" + r + ".png", 640, 400, true);
+  for (let f of ["water-streaks", "mud-streaks"]) stormArt[f] = loadPic("assets/storm/fx/" + f + ".png", 320, 160, true);
+  stormArt.splash = loadPic("assets/storm/fx/splash.png", 128, 96, true);
+  stormArt.sparkle = loadPic("assets/storm/fx/sparkle.png", 96, 96, true);
+  for (let t of ["empty", "half-full", "full"]) stormArt["sack-" + t] = loadPic("assets/storm/targets/litter-sack-" + t + ".png", 200, 240, true);
+  stormArt.undergrowth = loadPic("assets/storm/targets/undergrowth.png", 240, 200, true);
+  stormArt.note = loadPic("assets/storm/thank-you-note.webp", 500, 360, true);
+  for (let it of STORM_ITEMS) it.pic = loadPic("assets/storm/items/" + it.id + ".png", 256, 256, true);
 }
 
 // Starts the storm with 16 items in a random order. The snare wire and the two tricky
@@ -2470,7 +2509,8 @@ let lastSave = "";  // what was last written, so it is only written again when s
 
 // Everything needed to carry on later, or null before the game has really started
 function saveState() {
-  if (screen == "title" || screen == "briefing") return null;
+  // nothing worth continuing until the first night has been watched
+  if (screen == "title" || screen == "briefing" || seen.length == 0) return null;
   let atReport = ["report", "results", "end"].includes(screen);
   return {
     version: SAVE_VERSION,
@@ -2498,7 +2538,8 @@ function autosave() {
 function loadSave() {
   try {
     let state = JSON.parse(localStorage.getItem(SAVE_KEY));
-    return state && state.version == SAVE_VERSION && state.night <= NIGHTS ? state : null;
+    // (saves from before the first night has been watched are left over from older versions)
+    return state && state.version == SAVE_VERSION && state.night <= NIGHTS && state.seen.length ? state : null;
   } catch (e) {
     return null;
   }
