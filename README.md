@@ -2,7 +2,7 @@
 
 Wild Trace is a short visual mystery game for around 10–18 year olds. The player takes over a wildlife survey after the researcher running it disappeared. Every night they place camera traps around the reserve, but there are more locations than cameras, so watching one spot means missing whatever happens somewhere else. The photos slowly start showing things like animals in the wrong places, a fence and road spreading into the reserve, vehicles at night and snares. At the end the player uses the photos they collected to build a case, so what they can actually prove depends on what they chose to pay attention to.
 
-[Play Wild Trace](https://sidistclair.github.io/wildtrace-prototype/)
+[Play Wild Trace](https://sidistclair.github.io/wildtrace/)
 
 ## What's in the game
 
@@ -41,5 +41,3 @@ Everything can also be done with the mouse.
 ## Running it
 
 Open `index.html` in a browser, or use the link above. It needs an internet connection for p5.js and the fonts. The game code is in `sketch.js`, the sound is in `audio.js`, and the art and audio files are in `assets/`.
-
-(The repository is still called `wildtrace-prototype`, because renaming it would change the play link.)
