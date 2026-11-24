@@ -1,10 +1,10 @@
-# Wild Trace (prototype)
+# Wild Trace
 
 Wild Trace is a short visual mystery game for around 10–18 year olds. The player takes over a wildlife survey after the researcher running it disappeared. Every night they place camera traps around the reserve, but there are more locations than cameras, so watching one spot means missing whatever happens somewhere else. The photos slowly start showing things like animals in the wrong places, a fence and road spreading into the reserve, vehicles at night and snares. At the end the player uses the photos they collected to build a case, so what they can actually prove depends on what they chose to pay attention to.
 
 [Play Wild Trace](https://sidistclair.github.io/wildtrace-prototype/)
 
-## In this prototype
+## What's in the game
 
 - **5 nights:** drag 2 trail cameras onto 5 places on the reserve map each evening. The fence and road spread across the map from night to night.
 - **Reviewing photos on the trail camera:** step through frames, pin photos, and hit the red FLAG button when something looks wrong. Flags don't say whether you were right; you find out on the clue board at the end.
@@ -23,6 +23,7 @@ Wild Trace is a short visual mystery game for around 10–18 year olds. The play
 - **Storm Sweep:** after night 3 a storm washes things down the creek trail. Sort litter into the sack and leave natural things in the undergrowth. The snare wire counts as evidence, and a good score earns an extra supply pick.
 - **The case report:** pick your 6 strongest photos and tick the claims each one supports. Three claims are true and two are false. The verdict shows what you proved and the science behind each claim, and you can revise and resubmit.
 - **Three endings:** full case, partial case or not enough evidence. Then a clue board shows every clue you found or missed.
+- **Sound:** forest and creek ambience, construction noise, camera clicks and the storm. Turn it off with the speaker button or M.
 - **Saving:** the game saves itself in the browser, so you can close the tab and carry on later.
 
 ## Controls
@@ -39,4 +40,6 @@ Everything can also be done with the mouse.
 
 ## Running it
 
-Open `index.html` in a browser, or use the link above. It needs an internet connection for p5.js and the fonts. All the game code is in `sketch.js`, and the art is in `assets/`.
+Open `index.html` in a browser, or use the link above. It needs an internet connection for p5.js and the fonts. The game code is in `sketch.js`, the sound is in `audio.js`, and the art and audio files are in `assets/`.
+
+(The repository is still called `wildtrace-prototype`, because renaming it would change the play link.)
