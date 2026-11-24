@@ -467,9 +467,10 @@ function draw() {
     drawLoading();
     return;
   }
-  // While the How to play page is open, clicks only reach the page
+  // While How to play or "Start over?" is open, clicks only reach it
   let realClick = click;
-  if (help || askRestart) click = false;
+  let wasOpen = help || askRestart;
+  if (wasOpen) click = false;
 
   if (screen == "title") drawTitle();
   else if (screen == "briefing") drawBriefing();
@@ -484,7 +485,8 @@ function draw() {
   else if (screen == "storm") drawStorm();
   else if (screen == "ending") drawEnding();
 
-  click = realClick;
+  // a click that just opened a pop-up (e.g. New game) mustn't also press a button on it
+  click = !wasOpen && (help || askRestart) ? false : realClick;
   if (help) {
     hovering = false;
     drawHelp();
